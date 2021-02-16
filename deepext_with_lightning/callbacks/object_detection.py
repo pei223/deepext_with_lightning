@@ -6,6 +6,7 @@ from pathlib import Path
 from torch.utils.data import Dataset
 from pytorch_lightning.callbacks import Callback
 
+from ..image_process.drawer import draw_bounding_boxes_with_name_tag
 from ..models.base import DetectionModel
 from ..image_process.convert import cv_to_pil, to_4dim, tensor_to_cv, normalize255
 
@@ -59,7 +60,7 @@ class GenerateDetectionImageCallback(Callback):
                                                           model_img_size=self._img_size,
                                                           label_names=self._label_names)
         result_img = self._draw_teacher_bboxes(result_img, teacher_bboxes)
-        cv_to_pil(result_img).save(f"{self._out_dir}/data{i}_image{epoch + 1}.png")
+        cv_to_pil(result_img).save(f"{self._out_dir}/image{epoch + 1}.png")
 
     def _draw_teacher_bboxes(self, image: np.ndarray, teacher_bboxes: List[Tuple[float, float, float, float, int]]):
         """

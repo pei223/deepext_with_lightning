@@ -20,7 +20,7 @@ class AlbumentationsDetectionWrapperTransform:
             teacher = self._annotation_transform(teacher)
         if isinstance(image, Image.Image):
             image = pil_to_cv(image)
-        if isinstance(teacher, Image.Image):
+        if not isinstance(teacher, np.ndarray):
             teacher = np.array(teacher)
         bboxes = teacher[:, :4] if teacher.shape[0] > 0 else []
         labels = teacher[:, 4] if teacher.shape[0] > 0 else []

@@ -1,8 +1,11 @@
 from abc import abstractmethod
+from typing import Tuple
 
+import cv2
+import numpy as np
 import time
 from ..models.base import BaseDeepextModel
-from deepext_with_lightning.image_process.drawer import *
+from ..image_process.drawer import draw_text_with_background
 
 
 class RealtimePrediction:

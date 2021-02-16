@@ -6,7 +6,7 @@ import tqdm
 from pathlib import Path
 from pytorch_lightning.callbacks import Callback
 
-from ..image_process.convert import img_to_cv, cv_to_pil, to_4dim, normalize255, tensor_to_cv
+from ..image_process.convert import cv_to_pil, to_4dim, normalize255, tensor_to_cv
 from ..models.base import AttentionClassificationModel, ClassificationModel
 
 

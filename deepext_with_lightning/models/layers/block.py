@@ -15,7 +15,7 @@ class ResidualBlock(nn.Module):
 
         self._blocks = nn.Sequential()
         self._blocks.add_module(
-            f"block1",
+            "block1",
             BottleNeck(out_channels=out_channels, mid_channels=mid_channels, in_channels=in_channels, stride=stride,
                        dilation=dilation)
         )
@@ -51,7 +51,7 @@ class DownBlock(nn.Module):
                 Conv2DBatchNormRelu(in_channels=out_channels, out_channels=out_channels)
             )
         self._layers.add_module(
-            f"block_output",
+            "block_output",
             Conv2DBatchNormRelu(in_channels=out_channels, out_channels=out_channels, stride=2)
         )
 
@@ -95,7 +95,7 @@ class UpBlock(nn.Module):
             )
             return
         self._layers.add_module(
-            f"upblock_out",
+            "upblock_out",
             Conv2DBatchNormRelu(in_channels=out_channels, out_channels=out_channels)
         )
 
@@ -119,11 +119,10 @@ class UpSamplingBlock(nn.Module):
 
 
 class SharedWeightResidualBlock(nn.Module):
-    def __init__(self, in_channels: int, dropout_rate=0.1):
+    def __init__(self, in_channels: int, dropout_rate=0.25):
         super().__init__()
         self.shared_conv = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=3, stride=1,
                                      padding=1)
-        self._relu = nn.ReLU()
         self._bn1 = nn.BatchNorm2d(in_channels)
         self._dropout = nn.Dropout2d(dropout_rate)
         self._bn2 = nn.BatchNorm2d(in_channels)
@@ -136,12 +135,12 @@ class SharedWeightResidualBlock(nn.Module):
         """
         input_ = lateral_input + vertical_input if vertical_input is not None else lateral_input
         out = self.shared_conv(input_)
-        out = self._relu(self._bn1(out))
+        out = F.relu(self._bn1(out))
         out = self._dropout(out)
         out = self.shared_conv(out)
         out = self._bn2(out)
         out = out + input_
-        return self._relu(out)
+        return F.relu(out)
 
 
 class SharedWeightResidualBlockWithDropBlock(nn.Module):

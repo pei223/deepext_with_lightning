@@ -2,13 +2,11 @@ import torch
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
-from deepext.layers.backbone_key import BackBoneKey
-from deepext.layers.subnetwork import create_backbone
-from PIL import Image
+from deepext_with_lightning.models.layers.backbone_key import BackBoneKey
+from deepext_with_lightning.models.layers.subnetwork import create_backbone
+from deepext_with_lightning.image_process.drawer import combine_heatmap
 import cv2
 import numpy as np
-
-from deepext.utils import combine_heatmap, pil_to_cv
 
 backbone_key = BackBoneKey.RESNET_50
 

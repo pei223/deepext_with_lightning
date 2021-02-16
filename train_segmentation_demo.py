@@ -20,17 +20,14 @@ from common import SEGMENTATION_DATASET_INFO, build_data_loader, get_logger, lab
 
 loss_func = SegmentationFocalLoss()
 loss_func = None
-VALID_MODEL_KEYS = ["unet", "shelfnet"]
+VALID_MODEL_KEYS = ["unet", "resunet", "shelfnet"]
 
 
 def build_model(args, n_classes: int) -> SegmentationModel:
-    # if args.model == "unet":
-    #     if args.submodel is None:
-    #         return UNet(n_input_channels=3, n_output_channels=n_classes, lr=args.lr, loss_func=loss_func)
-    #     if args.submodel == "resnet":
-    #         return ResUNet(n_input_channels=3, n_output_channels=n_classes, lr=args.lr, loss_func=loss_func)
-    #     assert f"Invalid sub model type: {args.submodel}.  {args.model} Model require resnet or none."
-
+    if args.model == "unet":
+        return UNet(n_input_channels=3, n_classes=n_classes, lr=args.lr, loss_func=loss_func)
+    if args.model == "resnet":
+        return ResUNet(n_input_channels=3, n_classes=n_classes, lr=args.lr, loss_func=loss_func)
     if args.model == "shelfnet":
         return ShelfNet(n_classes=n_classes, lr=args.lr, out_size=(args.image_size, args.image_size),
                         loss_func=loss_func, backbone=BackBoneKey.from_val(args.submodel), backbone_pretrained=True)
@@ -41,13 +38,15 @@ def build_transforms(args, n_classes):
     train_transforms = A.Compose([
         A.HorizontalFlip(),
         A.RandomResizedCrop(width=args.image_size, height=args.image_size, scale=(0.5, 2.)),
-        A.CoarseDropout(max_height=int(args.image_size / 5), max_width=int(args.image_size / 5), max_holes=4),
-        A.Rotate(limit=(-20, 20)),
-        A.OneOf([
-            A.RandomBrightnessContrast(),
-            A.RandomGamma(),
-            A.Blur(blur_limit=5),
-        ]),
+        # A.CoarseDropout(max_height=int(args.image_size / 5), max_width=int(args.image_size / 5), max_holes=5),
+        A.Rotate(limit=(-10, 10)),
+        # A.ColorJitter(),
+        # A.OneOf([
+        #     A.RandomBrightnessContrast(),
+        #     A.RandomGamma(),
+        #     A.Blur(blur_limit=5),
+        # ]),
+        A.Blur(blur_limit=5),
         ToTensorV2(),
     ])
     train_transforms = AlbumentationsSegmentationWrapperTransform(train_transforms, class_num=n_classes,

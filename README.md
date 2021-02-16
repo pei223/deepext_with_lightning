@@ -42,7 +42,14 @@ python train_classification_demo.py --progress_dir=progress\classification --dat
 
 ### Segmentation
 ```
+# ShelfNet
 python train_segmentation_demo.py --moodel=shelfnet --submodel=resnet18 --dataset=voc2012 --dataset_root=<Pascal VOCデータセット2007のパス(tarファイル)> --progress_dir=<途中経過出力先ディレクトリ> 
+
+# UNet
+python train_segmentation_demo.py --moodel=unet --dataset=voc2012 --dataset_root=<Pascal VOCデータセット2007のパス(tarファイル)> --progress_dir=<途中経過出力先ディレクトリ> 
+
+# ResUNet
+python train_segmentation_demo.py --moodel=resunet --dataset=voc2012 --dataset_root=<Pascal VOCデータセット2007のパス(tarファイル)> --progress_dir=<途中経過出力先ディレクトリ> 
 ```
 
 <br/>

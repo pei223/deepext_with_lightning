@@ -1,7 +1,6 @@
 from .backbone_key import BackBoneKey
 from .block import ResidualBlock, UpSamplingBlock
 from .basic import Conv2DBatchNormRelu, BottleNeck, BottleNeckIdentity, GlobalAveragePooling
-from torch.nn import functional as F
 import torch.nn as nn
 import torchvision
 

@@ -62,9 +62,12 @@ SEGMENTATION_DATASET_INFO = {
 }
 
 
-def build_data_loader(args, train_dataset: Dataset, test_dataset: Dataset) -> Tuple[DataLoader, DataLoader]:
-    return DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4), \
-           DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=4)
+def build_data_loader(args, train_dataset: Dataset, test_dataset: Dataset,
+                      train_collate_fn=None, test_collate_fn=None) -> Tuple[DataLoader, DataLoader]:
+    return DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4,
+                      collate_fn=train_collate_fn), \
+           DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=4,
+                      collate_fn=test_collate_fn)
 
 
 def get_logger(log_prefix: str, args, model: BaseDeepextModel):

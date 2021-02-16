@@ -4,17 +4,14 @@ from warnings import warn
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
+
 from ....image_process.convert import try_cuda
 from ...base.segmentation_model import SegmentationModel
 
-from .modules import SegmentationShelf, OutLayer
-from ...layers.backbone_key import BackBoneKey, BACKBONE_CHANNEL_COUNT_DICT
-from ...layers.basic import Conv2DBatchNormRelu
-from ...layers.subnetwork import create_backbone
+from .modules import ShelfNetModel, ShelfNetModelWithEfficientNet
+from ...layers.backbone_key import BackBoneKey
 from ...layers.loss import AdaptiveCrossEntropyLoss
 from ....metrics.segmentation import SegmentationIoU
-
-__all__ = ['ShelfNet']
 
 
 class ShelfNet(SegmentationModel):
@@ -121,103 +118,3 @@ class ShelfNet(SegmentationModel):
 
     def generate_model_name(self, suffix: str = "") -> str:
         return super().generate_model_name(f'_{self._backbone.value}{suffix}')
-
-
-class ShelfNetModel(nn.Module):
-    def __init__(self, n_classes: int, out_size: Tuple[int, int], backbone: BackBoneKey = BackBoneKey.RESNET_18,
-                 pretrained=True):
-        super().__init__()
-
-        backbone_out_channel_ls = BACKBONE_CHANNEL_COUNT_DICT[backbone]
-        assert backbone_out_channel_ls is not None, "Invalid backbone type."
-        if backbone in [BackBoneKey.RESNET_18]:
-            mid_channel_ls = [64, 128, 256, 512]
-        elif backbone in [BackBoneKey.RESNET_34, BackBoneKey.RESNET_50, BackBoneKey.RESNEST_50,
-                          BackBoneKey.RESNEXT_50, ]:
-            mid_channel_ls = [128, 256, 512, 1024]
-        elif backbone in [BackBoneKey.RESNET_101, BackBoneKey.RESNET_152,
-                          BackBoneKey.RESNEXT_101, BackBoneKey.RESNEST_101,
-                          BackBoneKey.RESNEST_200, BackBoneKey.RESNEST_269]:
-            mid_channel_ls = [256, 512, 1024, 2048]
-        else:
-            assert False, "Invalid backbone type."
-
-        self._feature_and_layer_diff = len(backbone_out_channel_ls) - len(mid_channel_ls)
-        assert self._feature_and_layer_diff >= 0, "Shelfのレイヤー数はBackBoneのレイヤー数以下の必要があります."
-        reducers = []
-        for i in range(len(mid_channel_ls)):
-            reducers.append(
-                Conv2DBatchNormRelu(kernel_size=1,
-                                    in_channels=backbone_out_channel_ls[self._feature_and_layer_diff + i],
-                                    out_channels=mid_channel_ls[i], padding=0, bias=False))
-        self._reducers = nn.ModuleList(reducers)
-
-        self._multi_scale_backbone = create_backbone(backbone_key=backbone, pretrained=pretrained)
-        self._segmentation_shelf = SegmentationShelf(in_channels_ls=mid_channel_ls)
-
-        out_convs = []
-        for i in range(len(mid_channel_ls)):
-            out_convs.append(OutLayer(in_channels=mid_channel_ls[i], mid_channels=mid_channel_ls[0],
-                                      n_classes=n_classes, out_size=out_size))
-        self._out_convs = nn.ModuleList(out_convs)
-
-    def forward(self, x: torch.Tensor, aux: bool = True) -> List[torch.Tensor]:
-        x_list = self._multi_scale_backbone(x)
-        reduced_x_list = []
-
-        for i, reducer_layer in enumerate(self._reducers):
-            reduced_x_list.append(reducer_layer(x_list[i + self._feature_and_layer_diff]))
-        x_list = self._segmentation_shelf(reduced_x_list)
-        outs = []
-        for i, out_conv_layer in enumerate(self._out_convs):
-            outs.append(out_conv_layer(x_list[i]))
-        return outs
-
-
-class ShelfNetModelWithEfficientNet(nn.Module):
-    def __init__(self, n_classes: int, out_size: Tuple[int, int], backbone: BackBoneKey = BackBoneKey.EFFICIENTNET_B0,
-                 pretrained=True):
-        super().__init__()
-
-        if backbone in [BackBoneKey.EFFICIENTNET_B0, BackBoneKey.EFFICIENTNET_B1, BackBoneKey.EFFICIENTNET_B2]:
-            mid_channel_ls = [64, 128, 256, 512]
-        elif backbone in [BackBoneKey.EFFICIENTNET_B3, BackBoneKey.EFFICIENTNET_B4, BackBoneKey.EFFICIENTNET_B5]:
-            mid_channel_ls = [128, 256, 512, 1024]
-        elif backbone in [BackBoneKey.EFFICIENTNET_B6, BackBoneKey.EFFICIENTNET_B7]:
-            mid_channel_ls = [128, 256, 512, 1024]
-        else:
-            assert False, "Invalid backbone type."
-        backbone_out_channel_ls = BACKBONE_CHANNEL_COUNT_DICT[backbone][1:5]
-
-        self._feature_and_layer_diff = len(backbone_out_channel_ls) - len(mid_channel_ls)
-        assert self._feature_and_layer_diff >= 0, "Shelfのレイヤー数はBackBoneのレイヤー数以下の必要があります."
-        reducers = []
-        for i in range(len(mid_channel_ls)):
-            reducers.append(
-                Conv2DBatchNormRelu(kernel_size=1,
-                                    in_channels=backbone_out_channel_ls[self._feature_and_layer_diff + i],
-                                    out_channels=mid_channel_ls[i], padding=0))
-        self._reducers = nn.ModuleList(reducers)
-
-        self._multi_scale_backbone = create_backbone(backbone_key=backbone, pretrained=pretrained)
-        self._segmentation_shelf = SegmentationShelf(in_channels_ls=mid_channel_ls)
-
-        out_convs = []
-        for i in range(len(mid_channel_ls)):
-            out_convs.append(OutLayer(in_channels=mid_channel_ls[i], mid_channels=mid_channel_ls[0],
-                                      n_classes=n_classes, out_size=out_size))
-        self._out_convs = nn.ModuleList(out_convs)
-
-    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
-        x_list = self._multi_scale_backbone(x, start_idx=1, end_idx=5)  # BackBoneの後ろからレイヤー数分取得する.
-        reduced_x_list = []
-
-        for i, reducer_layer in enumerate(self._reducers):
-            reduced_x_list.append(reducer_layer(x_list[i]))
-
-        x_list = self._segmentation_shelf(reduced_x_list)
-
-        outs = []
-        for i, out_conv_layer in enumerate(self._out_convs):
-            outs.append(out_conv_layer(x_list[i]))
-        return outs

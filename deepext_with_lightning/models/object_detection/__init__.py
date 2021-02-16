@@ -1,1 +1,1 @@
-from .efficientdet import *
+from .efficientdet import EfficientDetector

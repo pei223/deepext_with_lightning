@@ -6,6 +6,7 @@ import pytorch_lightning as pl
 
 from ....models.base.detection_model import DetectionModel
 from .efficientdet_lib.models.efficientdet import EfficientDet
+from ....metrics.object_detection import DetectionIoU
 from .efficientdet_lib.utils import EFFICIENTDET
 from ....image_process.convert import try_cuda
 
@@ -29,8 +30,8 @@ class EfficientDetector(DetectionModel):
         self._max_detections = max_detections
         self._lr = lr
         # TODO Metric
-        self._train_acc: pl.metrics.Metric = try_cuda(pl.metrics.Accuracy(compute_on_step=False))
-        self._val_acc: pl.metrics.Metric = try_cuda(pl.metrics.Accuracy(compute_on_step=False))
+        self._train_iou: pl.metrics.Metric = try_cuda(DetectionIoU(n_classes))
+        self._val_iou: pl.metrics.Metric = try_cuda(DetectionIoU(n_classes))
 
     def forward(self, x: torch.Tensor):
         return self._model(x)
@@ -45,9 +46,9 @@ class EfficientDetector(DetectionModel):
             # TODO ここtensorにしたいけど公式がnumpy
             image = imgs[i].float().unsqueeze(0)
             scores, labels, boxes = self._model(try_cuda(image))
-            scores = scores.cpu().numpy()
-            labels = labels.cpu().numpy()
-            boxes = boxes.cpu().numpy()
+            scores = scores.detach().cpu().numpy()
+            labels = labels.detach().cpu().numpy()
+            boxes = boxes.detach().cpu().numpy()
             scores_sort = np.argsort(-scores)[:self._max_detections]
             # select detections
             image_boxes = boxes[scores_sort, :]
@@ -84,25 +85,19 @@ class EfficientDetector(DetectionModel):
         inputs, targets = batch
         targets = torch.tensor(targets) if not isinstance(targets, torch.Tensor) else targets
         inputs, targets = try_cuda(inputs).float(), try_cuda(targets).long()
-        batch_size = inputs.shape[0]
-
-        result = []
-        for i in range(batch_size):
-            image = inputs[i].float()
-            image_detections = self.predict_bboxes(image)
-            result.append(image_detections)
-
-        self._val_acc(result, targets)
+        result = self.predict_bboxes(inputs)
+        self._val_iou(result, targets)
 
     def on_validation_epoch_end(self) -> None:
-        val_acc = self._val_acc.compute()
-        self.log("val_acc", val_acc, on_step=False, on_epoch=True)
-        self._val_acc.reset()
+        val_acc = self._val_iou.compute()
+        self.log("val_iou", val_acc, on_step=False, on_epoch=True)
+        self._val_iou.reset()
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(lr=self._lr, params=self._model.parameters())
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
-        return [optimizer, ], [scheduler, ]
+        return optimizer
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
+        # return [optimizer, ], [scheduler, ]
 
     def generate_model_name(self, suffix: str = "") -> str:
         return f"{self._network}{suffix}"

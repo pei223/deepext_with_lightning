@@ -164,6 +164,12 @@ class RecallPrecision(pl.metrics.Metric):
             return recall, precision, f_score
         return torch.mean(recall), torch.mean(precision), torch.mean(f_score)
 
+
+class mAP(pl.metrics.Metric):
+    def __init__(self, n_classes: int):
+        self._n_classes = n_classes
+        pass
+
 #
 #
 # # TODO 実装途中
