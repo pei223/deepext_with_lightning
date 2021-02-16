@@ -92,29 +92,15 @@ class ShelfNet(SegmentationModel):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(lr=self._lr, params=self._model.parameters(), weight_decay=1e-4)
-        # optimizer = torch.optim.SGD(lr=self._lr, params=self._model.parameters(), weight_decay=1e-4)
-        if self.trainer:
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs,
-                                                                   verbose=True)
-        else:
-            # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer)
-            warn("Shelfnet#configure_optimizers: Trainer pointer not found.")
-            # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, threshold=1e-2)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50)
-        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True, mode="min")
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True, mode="min")
 
-        # return optimizer
-        return [optimizer, ], [scheduler, ]
-
-        # return {
-        #     "optimizer": optimizer,
-        #     "lr_scheduler": scheduler,
-        #     # "monitor": "train_loss",
-        #     'interval': 'epoch',
-        #     'frequency': 1,
-        #     # 'strict': True,
-        #     # "mode": "min"
-        # }
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
+            "monitor": "train_loss",
+            'interval': 'epoch',
+            'frequency': 1,
+        }
 
     def generate_model_name(self, suffix: str = "") -> str:
         return super().generate_model_name(f'_{self._backbone.value}{suffix}')

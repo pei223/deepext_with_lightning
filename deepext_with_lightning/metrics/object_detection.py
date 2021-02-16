@@ -42,6 +42,11 @@ class DetectionIoU(pl.metrics.Metric):
                        dist_reduce_fx="sum")
 
     def update(self, preds: List[np.ndarray], targets: Union[np.ndarray, torch.Tensor]) -> None:
+        """
+        :param preds: Sorted by score. (Batch size, bounding boxes by batch, 5(x_min, y_min, x_max, y_max, label))
+        :param targets: (batch size, bounding box count, 5(x_min, y_min, x_max, y_max, label))
+        :return:
+        """
         targets = targets.cpu().detach().numpy() if isinstance(targets, torch.Tensor) else targets
         # 全探索だと遅いのでクラスごとにまとめておく
         preds_by_class = []
@@ -112,8 +117,8 @@ class RecallPrecision(pl.metrics.Metric):
 
     def update(self, preds: List[np.ndarray], targets: Union[np.ndarray, torch.Tensor]) -> None:
         """
-        :param pred: (Batch size, bounding boxes by batch, 5(x_min, y_min, x_max, y_max, label))
-        :param teacher: (batch size, bounding box count, 5(x_min, y_min, x_max, y_max, label))
+        :param preds: Sorted by score. (Batch size, bounding boxes by batch, 5(x_min, y_min, x_max, y_max, label))
+        :param targets: (batch size, bounding box count, 5(x_min, y_min, x_max, y_max, label))
         :return:
         """
         targets = targets.cpu().detach().numpy() if isinstance(targets, torch.Tensor) else targets
@@ -165,69 +170,68 @@ class RecallPrecision(pl.metrics.Metric):
         return torch.mean(recall), torch.mean(precision), torch.mean(f_score)
 
 
-class mAP(pl.metrics.Metric):
-    def __init__(self, n_classes: int):
+class MeanAveragePrecision(pl.metrics.Metric):
+    def __init__(self, n_classes: int, by_classes=False, pr_rate=11):
+        super().__init__()
         self._n_classes = n_classes
-        pass
+        self.add_state("average_precision", default=torch.tensor(0.), dist_reduce_fx="sum")
+        self.add_state("image_count", default=torch.tensor(0.), dist_reduce_fx="sum")
+        self._pr_rate = pr_rate
+        self._by_classes = by_classes
 
-#
-#
-# # TODO 実装途中
-# class mAPByClasses:
-#     def __init__(self, n_classes: int):
-#         self._n_classes = n_classes
-#
-#     def __call__(self, results, teachers):
-#         average_precisions = [_ for _ in range(self._n_classes)]
-#         for label in range(self._n_classes):
-#             false_positives = np.zeros((0,))
-#             true_positives = np.zeros((0,))
-#             scores = np.zeros((0,))
-#             num_annotations = 0.0
-#             for i in range(len(results)):
-#                 detected_labels = []
-#                 detections_by_class = results[i][label]
-#                 annotations_by_class = teachers[i][label]
-#                 num_annotations += annotations_by_class.shape[0]
-#
-#                 for detection in detections_by_class:
-#                     scores = np.append(scores, detection[4])
-#
-#                     if annotations_by_class.shape[0] == 0:  # False detection
-#                         false_positives = np.append(false_positives, 1)
-#                         true_positives = np.append(true_positives, 0)
-#                         continue
-#
-#                     overlaps = calc_bbox_overlap(np.expand_dims(detection, axis=0), annotations_by_class)
-#                     assigned_annotation = np.argmax(overlaps, axis=1)
-#                     max_overlaps = overlaps[0, assigned_annotation]
-#
-#                     if assigned_annotation not in detected_labels:
-#                         false_positives = np.append(false_positives, 0)
-#                         true_positives = np.append(true_positives, 1)
-#                         detected_labels.append(assigned_annotation)
-#                     else:
-#                         false_positives = np.append(false_positives, 1)
-#                         true_positives = np.append(true_positives, 0)
-#             if num_annotations == 0:
-#                 average_precisions[label] = 0, 0
-#                 continue
-#
-#             # sort by score
-#             indices = np.argsort(-scores)
-#             # false_positives = false_positives[indices]
-#             # true_positives = true_positives[indices]
-#
-#             # compute false positives and true positives
-#             false_positives = np.cumsum(false_positives)
-#             true_positives = np.cumsum(true_positives)
-#
-#             # compute recall and precision
-#             recall = true_positives / num_annotations
-#             precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
-#
-#             # compute average precision
-#             average_precision = _compute_ap(recall, precision)
-#             average_precisions[label] = average_precision, num_annotations
-#
-#         return average_precisions
+    def update(self, preds: List[np.ndarray], targets: Union[np.ndarray, torch.Tensor]) -> None:
+        """
+        :param preds: Sorted by score. (Batch size, bounding boxes by batch, 5(x_min, y_min, x_max, y_max, label))
+        :param targets: (batch size, bounding box count, 5(x_min, y_min, x_max, y_max, label))
+        :return:
+        """
+        targets = targets.cpu().detach().numpy() if isinstance(targets, torch.Tensor) else targets
+        for i in range(len(preds)):
+            pred_bboxes = preds[i]
+            target_bboxes = targets[i]
+            target_bboxes = target_bboxes[target_bboxes[:, 4] >= 0]
+
+            ap = self._calc_average_precision(pred_bboxes, target_bboxes)
+            self.average_precision += ap
+            self.image_count += 1
+
+    def compute(self):
+        return self.average_precision / self.image_count
+
+    def _calc_average_precision(self, pred_bboxes: np.ndarray, target_bboxes: np.ndarray):
+        recall_ls, precision_ls = [], []
+        tp, fp, fn = 0, 0, target_bboxes.shape[0]
+        for i in range(pred_bboxes.shape[0]):
+            correct = False
+            for j in range(target_bboxes.shape[0]):
+                overlap, union, iou = calc_bbox_overlap_union_iou(pred_bboxes[i], target_bboxes[j])
+                if iou >= 0.5:
+                    fn -= 1
+                    tp += 1
+                    correct = True
+                    break
+            if not correct:
+                fp += 1
+            precision = tp / (tp + fp)
+            recall = tp / (tp + fn)
+            precision_ls.append(precision)
+            recall_ls.append(recall)
+        recalls = np.asarray(recall_ls)
+        precisions = np.asarray(precision_ls)
+        precisions = self._smooth_precisions(recalls, precisions)
+        return self._calc_integral(recalls, precisions)
+
+    def _smooth_precisions(self, recalls: np.ndarray, precisions: np.ndarray) -> np.ndarray:
+        new_precision_ls = []
+        for i in range(recalls.shape[0]):
+            new_precision_ls.append(np.max(precisions[i - 1:]))
+        return np.asarray(new_precision_ls)
+
+    def _calc_integral(self, recalls: np.ndarray, precisions: np.ndarray) -> float:
+        total_precision = 0.
+        for recall_threshold in np.linspace(0, 1, self._pr_rate).tolist():
+            precision = precisions[recalls >= recall_threshold]
+            if precision.shape[0] == 0:
+                continue
+            total_precision += np.max(precision)
+        return total_precision / self._pr_rate

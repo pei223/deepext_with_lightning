@@ -48,7 +48,7 @@ def build_transforms(args, class_index_dict: Dict[str, int]) -> Tuple[any, any]:
 def build_dataset(args, train_transforms, test_transforms) -> Tuple[Dataset, Dataset]:
     if args.dataset == "voc2012":
         train_dataset = torchvision.datasets.VOCDetection(root=args.dataset_root, download=True, year="2012",
-                                                          transforms=train_transforms, image_set='train')
+                                                          transforms=train_transforms, image_set='trainval')
         test_dataset = torchvision.datasets.VOCDetection(root=args.dataset_root, download=True, year="2012",
                                                          transforms=test_transforms, image_set='val')
         return train_dataset, test_dataset
@@ -102,9 +102,8 @@ if __name__ == "__main__":
 
     # Training setting.
     logger = get_logger("detection_demo", args, model)
-    # callbacks = [ModelCheckpoint(period=args.val_every_n_epoch, filename=f"{model.generate_model_name()}",
-    #                              dirpath=args.save_checkpoint_path, monitor='val_iou', verbose=True, mode="max")]
-    callbacks = []
+    callbacks = [ModelCheckpoint(period=args.val_every_n_epoch, filename=f"{model.generate_model_name()}",
+                                 dirpath=args.save_checkpoint_path, monitor='val_map', verbose=True, mode="max")]
     if args.progress_dir:
         callbacks.append(GenerateDetectionImageCallback(model=model, out_dir=args.progress_dir, dataset=test_dataset,
                                                         per_epoch=2, label_names=label_names,

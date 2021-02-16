@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 
 from ....models.base.detection_model import DetectionModel
 from .efficientdet_lib.models.efficientdet import EfficientDet
-from ....metrics.object_detection import DetectionIoU
+from ....metrics.object_detection import DetectionIoU, MeanAveragePrecision
 from .efficientdet_lib.utils import EFFICIENTDET
 from ....image_process.convert import try_cuda
 
@@ -30,6 +30,8 @@ class EfficientDetector(DetectionModel):
         self._max_detections = max_detections
         self._lr = lr
         # TODO Metric
+        self._train_map: pl.metrics.Metric = try_cuda(MeanAveragePrecision(n_classes))
+        self._val_map: pl.metrics.Metric = try_cuda(MeanAveragePrecision(n_classes))
         self._train_iou: pl.metrics.Metric = try_cuda(DetectionIoU(n_classes))
         self._val_iou: pl.metrics.Metric = try_cuda(DetectionIoU(n_classes))
 
@@ -87,17 +89,26 @@ class EfficientDetector(DetectionModel):
         inputs, targets = try_cuda(inputs).float(), try_cuda(targets).long()
         result = self.predict_bboxes(inputs)
         self._val_iou(result, targets)
+        self._val_map(result, targets)
 
     def on_validation_epoch_end(self) -> None:
-        val_acc = self._val_iou.compute()
-        self.log("val_iou", val_acc, on_step=False, on_epoch=True)
+        val_iou_value = self._val_iou.compute()
+        val_map_value = self._val_map.compute()
+        self.log("val_iou", val_iou_value, on_step=False, on_epoch=True)
+        self.log("val_map", val_map_value, on_step=False, on_epoch=True)
         self._val_iou.reset()
+        self._val_map.reset()
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(lr=self._lr, params=self._model.parameters())
-        return optimizer
-        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
-        # return [optimizer, ], [scheduler, ]
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True, mode="min")
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
+            "monitor": "train_loss",
+            'interval': 'epoch',
+            'frequency': 1,
+        }
 
     def generate_model_name(self, suffix: str = "") -> str:
         return f"{self._network}{suffix}"

@@ -2,10 +2,9 @@ import warnings
 
 warnings.simplefilter('ignore')
 
-import torch
 import numpy as np
 
-from deepext_with_lightning.metrics.object_detection import DetectionIoU, RecallPrecision
+from deepext_with_lightning.metrics.object_detection import DetectionIoU, RecallPrecision, MeanAveragePrecision
 
 n_classes = 3
 
@@ -65,3 +64,10 @@ def test_detection_iou_by_classes():
     metric(preds, teachers)
     metric_value = metric.compute()
     assert metric_value.shape == (n_classes,)
+
+
+def test_mAP():
+    metric = MeanAveragePrecision(n_classes)
+    metric(preds, teachers)
+    metric_value = metric.compute()
+    assert isinstance(metric_value.item(), float)
