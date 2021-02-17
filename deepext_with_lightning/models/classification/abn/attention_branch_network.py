@@ -7,6 +7,7 @@ from ...base import AttentionClassificationModel
 from ...classification.abn.modules import ABNModel
 from ...layers.backbone_key import BackBoneKey
 from ....image_process.convert import try_cuda
+from ....metrics.classification import ClassificationAccuracy
 
 
 class AttentionBranchNetwork(AttentionClassificationModel):
@@ -20,8 +21,8 @@ class AttentionBranchNetwork(AttentionClassificationModel):
         self._lr = lr
         self._model = try_cuda(
             ABNModel(n_classes=n_classes, pretrained=pretrained, backbone=backbone, n_blocks=n_blocks))
-        self._train_acc: pl.metrics.Metric = try_cuda(pl.metrics.Accuracy(compute_on_step=False))
-        self.val_acc: pl.metrics.Metric = try_cuda(pl.metrics.Accuracy(compute_on_step=False))
+        self._train_acc: pl.metrics.Metric = try_cuda(ClassificationAccuracy(n_classes))
+        self._val_acc: pl.metrics.Metric = try_cuda(ClassificationAccuracy(n_classes))
 
     def forward(self, x):
         labels, attention_labels, attention_map = self._model(x)
@@ -47,9 +48,8 @@ class AttentionBranchNetwork(AttentionClassificationModel):
         return outputs["loss"]
 
     def training_epoch_end(self, outputs: List[Any]) -> None:
-        self._train_acc.compute()
-        self.log('train_acc', self._train_acc, on_step=False, on_epoch=True)
-        self.logger.log_hyperparams(self.hparams)
+        value = self._train_acc.compute()
+        self.log('train_acc', value, on_step=False, on_epoch=True)
         self._train_acc.reset()
 
     def validation_step(self, batch, batch_idx):
@@ -59,17 +59,23 @@ class AttentionBranchNetwork(AttentionClassificationModel):
         inputs, targets = try_cuda(inputs).float(), try_cuda(targets).long()
         pred_prob, _, attention_map = self._model(inputs)
         pred_labels = torch.argmax(pred_prob, dim=1)
-        self.val_acc(pred_labels, targets)
+        self._val_acc(pred_labels, targets)
 
     def on_validation_epoch_end(self) -> None:
-        self.val_acc.compute()
-        self.log("val_acc", self.val_acc, on_step=False, on_epoch=True)
-        self.val_acc.reset()
+        value = self._val_acc.compute()
+        self.log("val_acc", value, on_step=False, on_epoch=True)
+        self._val_acc.reset()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(lr=self._lr, params=self._model.parameters())
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
-        return [optimizer, ], [scheduler, ]
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
+            "monitor": "train_loss",
+            'interval': 'epoch',
+            'frequency': 1,
+        }
 
     def _calc_loss(self, output, teacher):
         teacher = teacher.long()
@@ -78,10 +84,6 @@ class AttentionBranchNetwork(AttentionClassificationModel):
         attention_pred = F.softmax(attention_pred, dim=1)
         return F.cross_entropy(perception_pred, teacher, reduction="mean") + \
                F.cross_entropy(attention_pred, teacher, reduction="mean")
-        # perception_pred = F.sigmoid(perception_pred)
-        # attention_pred = F.sigmoid(attention_pred)
-        # return F.binary_cross_entropy(perception_pred, teacher, reduction="mean") + F.binary_cross_entropy(
-        #     attention_pred, teacher, reduction="mean")
 
     def predict_label_and_heatmap(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         self._model.eval()

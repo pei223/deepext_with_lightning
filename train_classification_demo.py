@@ -81,7 +81,7 @@ parser.add_argument('--load_checkpoint_path', type=str, default=None, help="Save
 parser.add_argument('--save_checkpoint_path', type=str, default="checkpoints", help="Saving checkpoint directory")
 parser.add_argument('--efficientnet_scale', type=int, default=0, help="Number of scale of EfficientNet.")
 parser.add_argument('--image_size', type=int, default=96, help="Image size.")
-parser.add_argument('--submodel', type=str, default=None, help=f'Type of submodel(resnet18, resnet34...).')
+parser.add_argument('--submodel', type=str, default="resnet18", help=f'Type of submodel(resnet18, resnet34...).')
 parser.add_argument('--val_every_n_epoch', type=int, default=5, help="Validate every n epoch.")
 parser.add_argument('--log_type', type=str, default="mlflow", help="")
 

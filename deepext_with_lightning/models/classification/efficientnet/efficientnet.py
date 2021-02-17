@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 from ....models.base.classification_model import ClassificationModel
 from ....image_process.convert import try_cuda
 from .efficientnet_lib.model import EfficientNetPredictor
+from ....metrics.classification import ClassificationAccuracy
 
 __all__ = ['EfficientNet']
 
@@ -20,8 +21,8 @@ class EfficientNet(ClassificationModel):
             EfficientNetPredictor.from_name(network, override_params={'num_classes': self._num_classes}))
         self._network = network
         self._lr = lr
-        self._train_acc: pl.metrics.Metric = try_cuda(pl.metrics.Accuracy(compute_on_step=False))
-        self._val_acc: pl.metrics.Metric = try_cuda(pl.metrics.Accuracy(compute_on_step=False))
+        self._train_acc: pl.metrics.Metric = try_cuda(ClassificationAccuracy(num_classes))
+        self._val_acc: pl.metrics.Metric = try_cuda(ClassificationAccuracy(num_classes))
 
     def forward(self, x):
         result = self._model(x)
@@ -50,9 +51,8 @@ class EfficientNet(ClassificationModel):
         return outputs["loss"]
 
     def training_epoch_end(self, outputs: List[Any]) -> None:
-        self._train_acc.compute()
-        self.log('train_acc', self._train_acc, on_step=False, on_epoch=True)
-        self.logger.log_hyperparams(self.hparams)
+        value = self._train_acc.compute()
+        self.log('train_acc', value, on_step=False, on_epoch=True)
         self._train_acc.reset()
 
     def validation_step(self, batch, batch_idx):
@@ -65,14 +65,20 @@ class EfficientNet(ClassificationModel):
         self._val_acc(pred_labels, targets)
 
     def on_validation_epoch_end(self) -> None:
-        self._val_acc.compute()
-        self.log("val_acc", self._val_acc, on_step=False, on_epoch=True)
+        value = self._val_acc.compute()
+        self.log("val_acc", value, on_step=False, on_epoch=True)
         self._val_acc.reset()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(lr=self._lr, params=self._model.parameters())
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer),
-        return [optimizer, ], [scheduler, ]
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
+            "monitor": "train_loss",
+            'interval': 'epoch',
+            'frequency': 1,
+        }
 
     def generate_model_name(self, suffix: str = "") -> str:
         return f"{self._network}{suffix}"

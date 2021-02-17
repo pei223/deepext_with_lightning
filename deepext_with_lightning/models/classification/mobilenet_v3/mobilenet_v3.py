@@ -2,10 +2,12 @@ from typing import List, Any, Tuple
 
 import torch
 from torch.nn import functional as F
+import pytorch_lightning as pl
+
 from ...base import ClassificationModel
 from .mobilenetv3_lib.model import MobileNetV3 as MobileNetV3lib
 from ....image_process.convert import try_cuda
-import pytorch_lightning as pl
+from ....metrics.classification import ClassificationAccuracy
 
 __all__ = ['MobileNetV3']
 
@@ -18,8 +20,8 @@ class MobileNetV3(ClassificationModel):
         self._mode = mode
         self._model = try_cuda(MobileNetV3lib(num_classes=num_classes, mode=mode))
         self._lr = lr
-        self._train_acc: pl.metrics.Metric = try_cuda(pl.metrics.Accuracy(compute_on_step=False))
-        self._val_acc: pl.metrics.Metric = try_cuda(pl.metrics.Accuracy(compute_on_step=False))
+        self._train_acc: pl.metrics.Metric = try_cuda(ClassificationAccuracy(num_classes))
+        self._val_acc: pl.metrics.Metric = try_cuda(ClassificationAccuracy(num_classes))
 
     def forward(self, x):
         result = self._model(x)
@@ -48,9 +50,8 @@ class MobileNetV3(ClassificationModel):
         return outputs["loss"]
 
     def training_epoch_end(self, outputs: List[Any]) -> None:
-        self._train_acc.compute()
-        self.log('train_acc', self._train_acc, on_step=False, on_epoch=True)
-        self.logger.log_hyperparams(self.hparams)
+        value = self._train_acc.compute()
+        self.log('train_acc', value, on_step=False, on_epoch=True)
         self._train_acc.reset()
 
     def validation_step(self, batch, batch_idx):
@@ -63,11 +64,17 @@ class MobileNetV3(ClassificationModel):
         self._val_acc(pred_labels, targets)
 
     def on_validation_epoch_end(self) -> None:
-        self._val_acc.compute()
-        self.log("val_acc", self._val_acc, on_step=False, on_epoch=True)
+        value = self._val_acc.compute()
+        self.log("val_acc", value, on_step=False, on_epoch=True)
         self._val_acc.reset()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(lr=self._lr, params=self._model.parameters())
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
-        return [optimizer, ], [scheduler, ]
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
+            "monitor": "train_loss",
+            'interval': 'epoch',
+            'frequency': 1,
+        }
