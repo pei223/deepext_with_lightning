@@ -1,2 +1,3 @@
 from .classification import GenerateAttentionMap, CSVClassificationResult
 from .segmentation import GenerateSegmentationImageCallback
+from .object_detection import GenerateDetectionImageCallback

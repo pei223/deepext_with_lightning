@@ -12,7 +12,7 @@ from deepext_with_lightning.models.base import DetectionModel
 from deepext_with_lightning.models.object_detection import EfficientDetector
 
 from deepext_with_lightning.transforms import AlbumentationsDetectionWrapperTransform
-from deepext_with_lightning.callbacks.object_detection import GenerateDetectionImageCallback
+from deepext_with_lightning.callbacks import GenerateDetectionImageCallback
 from deepext_with_lightning.dataset import VOCAnnotationTransform, AdjustDetectionTensorCollator
 from deepext_with_lightning.dataset.functions import label_names_to_dict
 

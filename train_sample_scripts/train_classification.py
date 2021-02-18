@@ -1,22 +1,24 @@
-from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+from pytorch_lightning.loggers import MLFlowLogger
 from torch.utils.data import DataLoader
+
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
+
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
-from dotenv import load_dotenv
-
-from deepext.layers.loss import ClassificationFocalLoss
-from deepext.data.dataset import CSVAnnotationDataset, DatasetSplitter
-from deepext.layers.backbone_key import BackBoneKey
-from deepext.models.base import ClassificationModel, AttentionClassificationModel
-from deepext.models.classification import EfficientNet, AttentionBranchNetwork
-from deepext.trainer import Trainer, LearningCurveVisualizer, CosineDecayScheduler
-from deepext.trainer.callbacks import ModelCheckout, GenerateAttentionMapCallback
-from deepext.data.transforms import AlbumentationsClsWrapperTransform
-from deepext.metrics.classification import *
-from deepext.utils import *
-from deepext.utils.dataset_util import create_label_list_and_dict
+from deepext_with_lightning.dataset import CSVAnnotationDataset, DatasetSplitter
+from deepext_with_lightning.models.layers.backbone_key import BackBoneKey
+from deepext_with_lightning.models.base import ClassificationModel, AttentionClassificationModel
+from deepext_with_lightning.models.classification import EfficientNet, AttentionBranchNetwork, \
+    CustomClassificationNetwork, MobileNetV3
+from deepext_with_lightning.callbacks import GenerateAttentionMap, CSVClassificationResult
+from deepext_with_lightning.transforms import AlbumentationsClsWrapperTransform
+from deepext_with_lightning.dataset.functions import create_label_list_and_dict
+from deepext_with_lightning.image_process.convert import try_cuda
 
 load_dotenv("envs/classification.env")
 
@@ -27,22 +29,18 @@ test_images_dir_path = os.environ.get("TEST_IMAGES_DIR_PATH")
 test_annotation_file_path = os.environ.get("TEST_ANNOTATION_FILE_PATH")
 label_file_path = os.environ.get("LABEL_FILE_PATH")
 
-load_weight_path = os.environ.get("MODEL_WEIGHT_PATH")
-saved_weights_dir_path = os.environ.get("SAVED_WEIGHTS_DIR_PATH")
+load_checkpoint_path = os.environ.get("LOAD_CHECKPOINT_PATH")
+save_checkpoint_dir_path = os.environ.get("SAVE_CHECKPOINT_DIR_PATH")
 progress_dir = os.environ.get("PROGRESS_DIR_PATH")
 # Model params
 width, height = int(os.environ.get("IMAGE_WIDTH")), int(os.environ.get("IMAGE_HEIGHT"))
-n_classes = int(os.environ.get("N_CLASSES"))
 # Learning params
 batch_size = int(os.environ.get("BATCH_SIZE"))
 lr = float(os.environ.get("LR"))
 epoch = int(os.environ.get("EPOCH"))
 
 label_names, label_dict = create_label_list_and_dict(label_file_path)
-
-# TODO Learning detail params
-lr_scheduler = CosineDecayScheduler(max_lr=lr, max_epochs=epoch, warmup_epochs=0)
-ignore_indices = [255, ]
+n_classes = len(label_names)
 
 # TODO Data augmentation
 train_transforms = AlbumentationsClsWrapperTransform(A.Compose([
@@ -74,33 +72,29 @@ else:
                                                annotation_csv_filepath=test_annotation_file_path,
                                                transforms=test_transforms)
 
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_data_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
 # TODO Model detail params
-voc_focal_loss = ClassificationFocalLoss(n_classes)
-model: ClassificationModel = try_cuda(EfficientNet(num_classes=n_classes, network='efficientnet-b0'))
+model: ClassificationModel = try_cuda(EfficientNet(num_classes=n_classes, network='efficientnet-b0', lr=lr))
 # model: ClassificationModel = try_cuda(AttentionBranchNetwork(n_classes=n_classes, backbone=BackBoneKey.RESNET_18))
 
-if load_weight_path and load_weight_path != "":
-    model.load_weight(load_weight_path)
+if load_checkpoint_path and load_checkpoint_path != "":
+    model.load_from_checkpoint(load_checkpoint_path)
 
 # TODO Train detail params
 # Metrics/Callbacks
-callbacks = [ModelCheckout(per_epoch=int(epoch / 2), model=model, our_dir=saved_weights_dir_path)]
+val_every_n_epoch = 5
+callbacks = [ModelCheckpoint(period=val_every_n_epoch, filename=f"{model.generate_model_name()}",
+                             dirpath=save_checkpoint_dir_path, monitor='val_acc', verbose=True, mode="max"),
+             CSVClassificationResult(period=epoch, model=model, dataset=test_dataset,
+                                     label_names=label_names, out_filepath=f"{progress_dir}/result.csv"), ]
 if isinstance(model, AttentionClassificationModel):
-    callbacks.append(GenerateAttentionMapCallback(model=model, output_dir=progress_dir, per_epoch=5,
-                                                  dataset=test_dataset, label_names=label_names))
-metric_ls = [ClassificationAccuracyByClasses(label_names)]
-metric_for_graph = ClassificationAccuracyByClasses(label_names, val_key=DetailMetricKey.KEY_AVERAGE)
-learning_curve_visualizer = LearningCurveVisualizer(metric_name="Accuracy", ignore_epoch=0,
-                                                    save_filepath="classification_learning_curve.png")
+    callbacks.append(GenerateAttentionMap(model=model, output_dir=progress_dir, period=2,
+                                          dataset=test_dataset, label_names=label_names))
+logger = MLFlowLogger(experiment_name=f"classification_{model.generate_model_name()}")
 
 # Training.
-Trainer(model, learning_curve_visualizer=learning_curve_visualizer).fit(train_data_loader=train_dataloader,
-                                                                        test_data_loader=test_dataloader,
-                                                                        epochs=epoch, callbacks=callbacks,
-                                                                        epoch_lr_scheduler_func=lr_scheduler,
-                                                                        metric_ls=metric_ls,
-                                                                        metric_for_graph=metric_for_graph,
-                                                                        calc_metrics_per_epoch=5)
+Trainer(max_epochs=epoch, callbacks=callbacks, gpus=-1,
+        check_val_every_n_epoch=val_every_n_epoch, logger=logger) \
+    .fit(model, train_dataloader=train_data_loader, val_dataloaders=test_data_loader)

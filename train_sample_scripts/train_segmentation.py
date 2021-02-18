@@ -1,21 +1,22 @@
-from pathlib import Path
 import os
+
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import MLFlowLogger
 from torch.utils.data import DataLoader
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
 from dotenv import load_dotenv
 
-from deepext.layers.loss import SegmentationFocalLoss
-from deepext.data.dataset import IndexImageDataset, DatasetSplitter
-from deepext.layers.backbone_key import BackBoneKey
-from deepext.models.base import SegmentationModel
-from deepext.models.segmentation import UNet, ResUNet, ShelfNet
-from deepext.trainer import Trainer, LearningCurveVisualizer, CosineDecayScheduler
-from deepext.trainer.callbacks import ModelCheckout, GenerateSegmentationImageCallback
-from deepext.data.transforms import AlbumentationsSegmentationWrapperTransform
-from deepext.metrics.segmentation import *
-from deepext.utils import *
+from deepext_with_lightning.callbacks import GenerateSegmentationImageCallback
+from deepext_with_lightning.dataset import IndexImageDataset, DatasetSplitter
+from deepext_with_lightning.models.layers.backbone_key import BackBoneKey
+from deepext_with_lightning.models.base import SegmentationModel
+from deepext_with_lightning.models.segmentation import UNet, ResUNet, ShelfNet
+from deepext_with_lightning.transforms import AlbumentationsSegmentationWrapperTransform
+from deepext_with_lightning.dataset.functions import create_label_list_and_dict
+from deepext_with_lightning.image_process.convert import try_cuda
 
 load_dotenv("envs/segmentation.env")
 
@@ -26,24 +27,19 @@ test_images_dir = os.environ.get("TEST_IMAGES_PATH")
 test_annotations_dir = os.environ.get("TEST_ANNOTATIONS_PATH")
 label_file_path = os.environ.get("LABEL_FILE_PATH")
 
-load_weight_path = os.environ.get("MODEL_WEIGHT_PATH")
-saved_weights_dir = os.environ.get("SAVED_WEIGHTS_DIR_PATH")
+load_checkpoint_path = os.environ.get("LOAD_CHECKPOINT_PATH")
+save_checkpoint_dir_path = os.environ.get("SAVE_CHECKPOINT_DIR_PATH")
 progress_dir = os.environ.get("PROGRESS_DIR_PATH")
 # Model params
 width, height = int(os.environ.get("IMAGE_WIDTH")), int(os.environ.get("IMAGE_HEIGHT"))
-n_classes = int(os.environ.get("N_CLASSES"))
 # Learning params
 batch_size = int(os.environ.get("BATCH_SIZE"))
 lr = float(os.environ.get("LR"))
 epoch = int(os.environ.get("EPOCH"))
 
-label_names = []
-with open(label_file_path, "r") as file:
-    for line in file:
-        label_names.append(line.replace("\n", ""))
+label_names, label_dict = create_label_list_and_dict(label_file_path)
+n_classes = len(label_names) + 1  # Including background
 
-# TODO Learning detail params
-lr_scheduler = CosineDecayScheduler(max_lr=lr, max_epochs=epoch, warmup_epochs=0)
 ignore_indices = [255, ]
 
 # TODO Data augmentation
@@ -76,31 +72,26 @@ else:
     test_dataset = IndexImageDataset.create(image_dir_path=test_images_dir, index_image_dir_path=test_annotations_dir,
                                             transforms=test_transforms)
 
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_data_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
 # TODO Model detail params
-voc_focal_loss = SegmentationFocalLoss()
 model: SegmentationModel = try_cuda(
-    ShelfNet(n_classes=n_classes, out_size=(height, width), loss_func=voc_focal_loss))
-if load_weight_path and load_weight_path != "":
-    model.load_weight(load_weight_path)
+    ShelfNet(n_classes=n_classes, out_size=(height, width)))
+
+if load_checkpoint_path and load_checkpoint_path != "":
+    model.load_from_checkpoint(load_checkpoint_path)
 
 # TODO Train detail params
 # Metrics/Callbacks
-callbacks = [ModelCheckout(per_epoch=int(epoch / 2), model=model, our_dir=saved_weights_dir),
+val_every_n_epoch = 5
+callbacks = [ModelCheckpoint(period=val_every_n_epoch, filename=f"{model.generate_model_name()}",
+                             dirpath=save_checkpoint_dir_path, monitor='val_iou', verbose=True, mode="max"),
              GenerateSegmentationImageCallback(output_dir=progress_dir, per_epoch=5, model=model,
                                                dataset=test_dataset)]
-metric_ls = [SegmentationIoUByClasses(label_names), SegmentationRecallPrecision(label_names)]
-metric_for_graph = SegmentationIoUByClasses(label_names, val_key=DetailMetricKey.KEY_AVERAGE)
-learning_curve_visualizer = LearningCurveVisualizer(metric_name="mIoU", ignore_epoch=0,
-                                                    save_filepath="segmentation_learning_curve.png")
+logger = MLFlowLogger(experiment_name=f"segmentation_{model.generate_model_name()}")
 
 # Training.
-Trainer(model, learning_curve_visualizer=learning_curve_visualizer).fit(train_data_loader=train_dataloader,
-                                                                        test_data_loader=test_dataloader,
-                                                                        epochs=epoch, callbacks=callbacks,
-                                                                        epoch_lr_scheduler_func=lr_scheduler,
-                                                                        metric_for_graph=metric_for_graph,
-                                                                        metric_ls=metric_ls,
-                                                                        calc_metrics_per_epoch=5)
+Trainer(max_epochs=epoch, callbacks=callbacks, gpus=-1,
+        check_val_every_n_epoch=val_every_n_epoch, logger=logger) \
+    .fit(model, train_dataloader=train_data_loader, val_dataloaders=test_data_loader)

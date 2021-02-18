@@ -1,24 +1,24 @@
 import os
+from dotenv import load_dotenv
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 from torch.utils.data import DataLoader
+
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import MLFlowLogger
+
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
-from dotenv import load_dotenv
-
-from deepext.data.dataset import VOCDataset
-from deepext.layers.backbone_key import BackBoneKey
-from deepext.models.base import DetectionModel
-from deepext.models.object_detection import EfficientDetector
-from deepext.trainer import Trainer, LearningCurveVisualizer, CosineDecayScheduler
-from deepext.trainer.callbacks import ModelCheckout, GenerateDetectionImageCallback
-from deepext.data.transforms import AlbumentationsDetectionWrapperTransform
-from deepext.data.dataset import AdjustDetectionTensorCollator, DatasetSplitter
-from deepext.metrics.object_detection import *
-from deepext.utils import try_cuda
-from deepext.utils.dataset_util import create_label_list_and_dict
+from deepext_with_lightning.dataset import VOCDataset, AdjustDetectionTensorCollator, DatasetSplitter
+from deepext_with_lightning.models.base import DetectionModel
+from deepext_with_lightning.models.object_detection import EfficientDetector
+from deepext_with_lightning.callbacks import GenerateDetectionImageCallback
+from deepext_with_lightning.transforms import AlbumentationsDetectionWrapperTransform
+from deepext_with_lightning.image_process.convert import try_cuda
+from deepext_with_lightning.dataset.functions import create_label_list_and_dict
 
 load_dotenv("envs/detection.env")
 
@@ -29,18 +29,18 @@ test_images_dir = os.environ.get("TEST_IMAGES_PATH")
 test_annotations_dir = os.environ.get("TEST_ANNOTATIONS_PATH")
 label_file_path = os.environ.get("LABEL_FILE_PATH")
 
-load_weight_path = os.environ.get("MODEL_WEIGHT_PATH")
-saved_weights_dir = os.environ.get("SAVED_WEIGHTS_DIR_PATH")
+load_checkpoint_path = os.environ.get("LOAD_CHECKPOINT_PATH")
+save_checkpoint_dir_path = os.environ.get("SAVE_CHECKPOINT_DIR_PATH")
 progress_dir = os.environ.get("PROGRESS_DIR_PATH")
 # Model params
 width, height = int(os.environ.get("IMAGE_WIDTH")), int(os.environ.get("IMAGE_HEIGHT"))
-n_classes = int(os.environ.get("N_CLASSES"))
 # Learning params
 batch_size = int(os.environ.get("BATCH_SIZE"))
 lr = float(os.environ.get("LR"))
 epoch = int(os.environ.get("EPOCH"))
 
 label_names, class_index_dict = create_label_list_and_dict(label_file_path)
+n_classes = len(label_names)
 
 ignore_indices = [255, ]
 
@@ -73,39 +73,29 @@ else:
     test_dataset = VOCDataset.create(image_dir_path=test_images_dir, transforms=test_transforms,
                                      annotation_dir_path=test_annotations_dir, class_index_dict=class_index_dict)
 
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                               collate_fn=AdjustDetectionTensorCollator())
+test_data_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True,
                               collate_fn=AdjustDetectionTensorCollator())
-test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True,
-                             collate_fn=AdjustDetectionTensorCollator())
 
 # TODO Model detail params
-model: DetectionModel = try_cuda(EfficientDetector(num_classes=n_classes, lr=lr,
+model: DetectionModel = try_cuda(EfficientDetector(n_classes=n_classes, lr=lr,
                                                    network=f"efficientdet-d0", score_threshold=0.5))
-if load_weight_path and load_weight_path != "":
-    model.load_weight(load_weight_path)
 
-# TODO Learning detail params
-# epoch_lr_scheduler = CosineDecayScheduler(max_lr=lr, max_epochs=epoch, warmup_epochs=0)
-# loss_lr_scheduler = None
-epoch_lr_scheduler = None
-loss_lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model.get_optimizer(), patience=5, verbose=True)
+if load_checkpoint_path and load_checkpoint_path != "":
+    model.load_from_checkpoint(load_checkpoint_path)
 
 # TODO Train detail params
-# Metrics/Callbacks
-callbacks = [ModelCheckout(per_epoch=int(epoch / 2), model=model, our_dir=saved_weights_dir),
+# Callbacks
+val_every_n_epoch = 5
+callbacks = [ModelCheckpoint(period=val_every_n_epoch, filename=f"{model.generate_model_name()}",
+                             dirpath=save_checkpoint_dir_path, monitor='val_map', verbose=True, mode="max"),
              GenerateDetectionImageCallback(model, (height, width), test_dataset, per_epoch=5,
                                             out_dir=progress_dir, label_names=label_names)]
-metric_ls = [DetectionIoUByClasses(label_names), RecallAndPrecision(label_names)]
-metric_for_graph = DetectionIoUByClasses(label_names, val_key=DetailMetricKey.KEY_AVERAGE)
-learning_curve_visualizer = LearningCurveVisualizer(metric_name="mIoU", ignore_epoch=10,
-                                                    save_filepath="detection_learning_curve.png")
+
+logger = MLFlowLogger(experiment_name=f"detection_{model.generate_model_name()}")
 
 # Training.
-Trainer(model, learning_curve_visualizer=learning_curve_visualizer).fit(train_data_loader=train_dataloader,
-                                                                        test_data_loader=test_dataloader,
-                                                                        epochs=epoch, callbacks=callbacks,
-                                                                        loss_lr_scheduler=loss_lr_scheduler,
-                                                                        epoch_lr_scheduler_func=epoch_lr_scheduler,
-                                                                        metric_for_graph=metric_for_graph,
-                                                                        metric_ls=metric_ls,
-                                                                        calc_metrics_per_epoch=5)
+Trainer(max_epochs=epoch, callbacks=callbacks, gpus=-1,
+        check_val_every_n_epoch=val_every_n_epoch, logger=logger) \
+    .fit(model, train_dataloader=train_data_loader, val_dataloaders=test_data_loader)
