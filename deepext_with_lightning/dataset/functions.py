@@ -23,3 +23,10 @@ def visualize_category_hist(title: str, val_dict: Dict[str, int], out_filepath: 
     plt.title(title)
     plt.savefig(out_filepath)
     plt.close()
+
+
+def label_names_to_dict(label_names: List[str]):
+    class_index_dict = {}
+    for i, label_name in enumerate(label_names):
+        class_index_dict[label_name] = i
+    return class_index_dict

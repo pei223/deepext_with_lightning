@@ -1,9 +1,9 @@
-import random
-from typing import List, Tuple
-
+import albumentations as A
 import torch
 import numpy as np
 from PIL import Image
+
+from ..image_process.convert import pil_to_cv
 
 
 class ImageToOneHot:
@@ -64,21 +64,17 @@ class ClassificationLabelSmoothing:
         return label * (1. - self._epsilon) + self._epsilon
 
 
-class LabelAndDataTransforms:
-    def __init__(self, transform_sets=List[Tuple[any, any]]):
-        """
-        :param transform_sets: list of data and label transforms [(data_transform, label_transform), ...]
-        """
-        self._transform_sets = transform_sets
+class AlbumentationsOnlyImageWrapperTransform:
+    def __init__(self, albumentations_transforms: A.Compose, is_image_normalize=True):
+        self._albumentations_transforms = albumentations_transforms
+        self._is_image_normalize = is_image_normalize
 
-    def __call__(self, img, label):
-        for i in range(len(self._transform_sets)):
-            seed = random.randint(0, 2 ** 32)
-            data_transform, label_transform = self._transform_sets[i]
-            random.seed(seed)
-            img = data_transform(img) if data_transform is not None else img
-            random.seed(seed)
-            label = label_transform(label) if label_transform is not None else label
-        return img, label
+    def __call__(self, image: Image.Image or np.ndarray):
+        if isinstance(image, Image.Image):
+            image = pil_to_cv(image)
 
-
+        result_dict = self._albumentations_transforms(image=image)
+        result_image = result_dict["image"]
+        if self._is_image_normalize:
+            result_image = result_image / 255.
+        return result_image

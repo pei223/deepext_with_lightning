@@ -1,12 +1,10 @@
 import argparse
 
-from pytorch_lightning import LightningModule
-
 from deepext_with_lightning.dataset.functions import create_label_list_and_dict
 from deepext_with_lightning.image_process.convert import try_cuda
 from deepext_with_lightning.models import model_service
 from deepext_with_lightning.models.base import ClassificationModel, AttentionClassificationModel, SegmentationModel, \
-    DetectionModel
+    DetectionModel, BaseDeepextModel
 from deepext_with_lightning.camera import RealtimeClassification, RealtimeAttentionClassification, RealtimeSegmentation, \
     RealtimeDetection
 
@@ -24,7 +22,7 @@ if __name__ == "__main__":
     # Fetch model and load weight.
     model_class = model_service.resolve_model_class_from_name(args.model)
 
-    model: LightningModule = try_cuda(model_class.load_from_checkpoint(args.load_checkpoint_path))
+    model: BaseDeepextModel = try_cuda(model_class.load_from_checkpoint(args.load_checkpoint_path))
 
     if isinstance(model, SegmentationModel):
         RealtimeSegmentation(model=model, img_size_for_model=(args.image_size, args.image_size)).realtime_predict(

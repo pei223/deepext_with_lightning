@@ -14,8 +14,9 @@ from deepext_with_lightning.models.object_detection import EfficientDetector
 from deepext_with_lightning.transforms import AlbumentationsDetectionWrapperTransform
 from deepext_with_lightning.callbacks.object_detection import GenerateDetectionImageCallback
 from deepext_with_lightning.dataset import VOCAnnotationTransform, AdjustDetectionTensorCollator
+from deepext_with_lightning.dataset.functions import label_names_to_dict
 
-from common import DETECTION_DATASET_INFO, get_logger, label_names_to_dict, build_data_loader
+from common import DETECTION_DATASET_INFO, get_logger, build_data_loader
 
 VALID_MODEL_KEYS = ["efficientdet"]
 

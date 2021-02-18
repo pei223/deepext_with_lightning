@@ -14,7 +14,9 @@ from deepext_with_lightning.models.layers.backbone_key import BackBoneKey
 from deepext_with_lightning.models.base import ClassificationModel
 from deepext_with_lightning.models.classification import *
 from deepext_with_lightning.transforms import AlbumentationsOnlyImageWrapperTransform
-from common import CLASSIFICATION_DATASET_INFO, build_data_loader, get_logger, label_names_to_dict
+from deepext_with_lightning.dataset.functions import label_names_to_dict
+
+from common import CLASSIFICATION_DATASET_INFO, build_data_loader, get_logger
 
 VALID_MODEL_KEYS = ["efficientnet", "mobilenet", "abn", "custommodel"]
 

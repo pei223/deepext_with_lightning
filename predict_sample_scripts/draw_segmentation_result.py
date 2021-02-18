@@ -7,18 +7,18 @@ from albumentations.pytorch.transforms import ToTensorV2
 
 from dotenv import load_dotenv
 
-from deepext.data.transforms import AlbumentationsClsWrapperTransform
-from deepext.layers.backbone_key import BackBoneKey
-from deepext.models.base import SegmentationModel
-from deepext.models.segmentation import ShelfNet
-from deepext.utils import try_cuda
-from deepext.data.dataset import ImageOnlyDataset
+from deepext_with_lightning.models import model_service
+from deepext_with_lightning.transforms import AlbumentationsClsWrapperTransform
+from deepext_with_lightning.models.base import SegmentationModel
+from deepext_with_lightning.image_process.convert import try_cuda, normalize255, tensor_to_cv, to_4dim
+from deepext_with_lightning.dataset import ImageOnlyDataset
 
 load_dotenv("envs/segmentation.env")
 
+model_name = os.environ.get("MODEL_NAME")
 images_dir_path = os.environ.get("IMAGES_DIR_PATH")
 result_dir_path = os.environ.get("RESULT_DIR_PATH")
-weight_path = os.environ.get("MODEL_WEIGHT_PATH")
+checkpoint_path = os.environ.get("CHECKPOINT_PATH")
 width, height = int(os.environ.get("IMAGE_WIDTH")), int(os.environ.get("IMAGE_HEIGHT"))
 n_classes = int(os.environ.get("N_CLASSES"))
 
@@ -34,12 +34,14 @@ dataset = ImageOnlyDataset(image_dir=images_dir_path, image_transform=transforms
 
 # TODO Choose model, parameters.
 print("Loading model...")
-model: SegmentationModel = try_cuda(
-    ShelfNet(n_classes=n_classes, out_size=(height, width), backbone=BackBoneKey.RESNET_18))
-model.load_weight(weight_path)
+model_class = model_service.resolve_segmentation_model(model_name)
+model: SegmentationModel = try_cuda(model_class.load_from_checkpoint(checkpoint_path))
 print("Model loaded")
 
-for i, image in enumerate(tqdm.tqdm(dataset)):
-    result_idx_array, result_image = model.calc_segmentation_image(image)
-    result_image = cv2.resize(result_image, dataset.current_image_size())
-    cv2.imwrite(f"{result_dir_path}/result_{i}.jpg", result_image)
+for i, img_tensor in enumerate(tqdm.tqdm(dataset)):
+    origin_image = normalize255(tensor_to_cv(img_tensor))
+    pred_label, prob = model.predict_index_image(to_4dim(img_tensor))
+    index_image = tensor_to_cv(pred_label[0])
+    result_img = model.generate_mixed_segment_image(origin_image, index_image)
+    result_img = cv2.resize(result_img, dataset.current_image_size())
+    cv2.imwrite(f"{result_dir_path}/result_{i}.jpg", result_img)

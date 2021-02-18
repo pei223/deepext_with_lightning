@@ -1,8 +1,7 @@
-from typing import Tuple, List
+from typing import Tuple
 
 import torch
 from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
-import mlflow.pytorch
 from torch.utils.data import Dataset, DataLoader
 
 from deepext_with_lightning.image_process.convert import try_cuda
@@ -88,10 +87,3 @@ def get_logger(log_prefix: str, args, model: BaseDeepextModel):
         logger.experiment.add_graph(model, test_tensor)
         return logger
     raise RuntimeError(f"Invalid log type: {args.log_type}")
-
-
-def label_names_to_dict(label_names: List[str]):
-    class_index_dict = {}
-    for i, label_name in enumerate(label_names):
-        class_index_dict[label_name] = i
-    return class_index_dict
