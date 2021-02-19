@@ -40,15 +40,14 @@ def build_transforms(args, n_classes):
     train_transforms = A.Compose([
         A.HorizontalFlip(),
         A.RandomResizedCrop(width=args.image_size, height=args.image_size, scale=(0.5, 2.)),
-        # A.CoarseDropout(max_height=int(args.image_size / 5), max_width=int(args.image_size / 5), max_holes=5),
-        A.Rotate(limit=(-10, 10)),
-        # A.ColorJitter(),
-        # A.OneOf([
-        #     A.RandomBrightnessContrast(),
-        #     A.RandomGamma(),
-        #     A.Blur(blur_limit=5),
-        # ]),
-        A.Blur(blur_limit=5),
+        A.CoarseDropout(max_height=int(args.image_size / 5), max_width=int(args.image_size / 5), max_holes=5),
+        A.Rotate(limit=(-30, 30)),
+        A.ColorJitter(),
+        A.OneOf([
+            A.RandomGamma(),
+            A.RandomBrightnessContrast(),
+            A.Blur(blur_limit=5),
+        ]),
         ToTensorV2(),
     ])
     train_transforms = AlbumentationsSegmentationWrapperTransform(train_transforms, class_num=n_classes,
@@ -65,13 +64,13 @@ def build_transforms(args, n_classes):
 def build_dataset(args, train_transforms, test_transforms) -> Tuple[Dataset, Dataset]:
     if args.dataset == "voc2012":
         train_dataset = torchvision.datasets.VOCSegmentation(root=args.dataset_root, download=True, year="2012",
-                                                             image_set='train', transforms=train_transforms)
+                                                             image_set='trainval', transforms=train_transforms)
         test_dataset = torchvision.datasets.VOCSegmentation(root=args.dataset_root, download=True, year="2012",
                                                             image_set='val', transforms=test_transforms)
         return train_dataset, test_dataset
     if args.dataset == "voc2007":
         train_dataset = torchvision.datasets.VOCSegmentation(root=args.dataset_root, download=True, year="2007",
-                                                             image_set='train', transforms=train_transforms)
+                                                             image_set='trainval', transforms=train_transforms)
         test_dataset = torchvision.datasets.VOCSegmentation(root=args.dataset_root, download=True, year="2007",
                                                             image_set='val', transforms=test_transforms)
         return train_dataset, test_dataset

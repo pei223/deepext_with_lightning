@@ -38,6 +38,7 @@ class RealtimePrediction:
                 break
 
             start = time.time()
+            frame = cv2.resize(frame, frame_size)
             result_img = self.calc_result(frame)
             infer_speed = time.time() - start
             result_img = self._arrange_image_for_video_writing(result_img, frame_size)
