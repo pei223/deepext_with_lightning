@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import time
 from ..models.base import BaseDeepextModel
-from ..image_process.drawer import draw_text_with_background
+from ..image_process.drawer import draw_text
 
 
 class RealtimePrediction:
@@ -57,11 +57,10 @@ class RealtimePrediction:
 
     def _write_inference_speed(self, frame: np.ndarray, infer_time: float):
         text = f"Inference speed:   {infer_time} s / frame"
-        offsets = (0, 25)
-        background_color = (255, 255, 255)
+        offsets = (550, 20)
         text_color = (0, 0, 255)
-        return draw_text_with_background(frame, background_color=background_color, text_color=text_color, text=text,
-                                         offsets=offsets, font_scale=0.5)
+        return draw_text(frame, text_color=text_color, text=text,
+                         offsets=offsets, font_scale=0.5)
 
     @abstractmethod
     def calc_result(self, frame: np.ndarray) -> np.ndarray:

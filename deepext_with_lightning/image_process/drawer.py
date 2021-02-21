@@ -90,9 +90,8 @@ def draw_bounding_boxes_with_name_tag(origin_image: np.ndarray, bounding_boxes: 
 
 
 def draw_text_with_background(origin_img: np.ndarray, text, offsets: Tuple[int, int], background_color=(255, 255, 255),
-                              text_color=(0, 0, 0), margin_px=8, font_scale=0.7):
+                              text_color=(0, 0, 0), margin_px=8, font_scale=0.7, font=cv2.FONT_HERSHEY_DUPLEX):
     img = origin_img.copy()
-    font = cv2.FONT_HERSHEY_DUPLEX
     text_width, text_height = cv2.getTextSize(text, font, font_scale, 1)[0]
     name_tag_height = text_height + margin_px * 2
     background_coors = (offsets,
@@ -101,6 +100,13 @@ def draw_text_with_background(origin_img: np.ndarray, text, offsets: Tuple[int, 
     img = cv2.putText(img, text, (offsets[0] + margin_px, offsets[1] + margin_px + text_height), font, font_scale,
                       text_color, 1, cv2.LINE_AA)
     return img
+
+
+def draw_text(origin_img: np.ndarray, text, offsets: Tuple[int, int],
+                              text_color=(0, 0, 0), font_scale=0.7, font=cv2.FONT_HERSHEY_DUPLEX):
+    text_width, text_height = cv2.getTextSize(text, font, font_scale, 1)[0]
+    return cv2.putText(origin_img, text, (offsets[0], offsets[1] + text_height), font, font_scale,
+                       text_color, 1, cv2.LINE_AA)
 
 
 def combine_heatmap(origin_image: np.ndarray, heatmap_img: np.ndarray, origin_alpha=0.5):

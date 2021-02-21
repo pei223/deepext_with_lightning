@@ -5,7 +5,7 @@ import numpy as np
 
 from ..base import AttentionClassificationModel, ClassificationModel
 from ...image_process.convert import normalize1, to_4dim, cv_to_tensor, normalize255, tensor_to_cv
-from ...image_process.drawer import draw_text_with_background
+from ...image_process.drawer import draw_text
 
 __all__ = ["draw_result_label_to_frame", "draw_result_label_and_heatmap_to_frame"]
 
@@ -27,11 +27,9 @@ def draw_result_label_to_frame(model: ClassificationModel, frame: np.ndarray,
     label = label[0]
     label_prob = probs[0][label]
     result_text = f"Inference result:    {label_names[label]} - {label_prob}%"
-    offsets = (0, 40)
-    background_color = (255, 255, 255)
+    offsets = (20, 20)
     text_color = (0, 0, 255)
-    return draw_text_with_background(origin_frame, background_color=background_color, text_color=text_color,
-                                     text=result_text, offsets=offsets, font_scale=0.5)
+    return draw_text(origin_frame, text_color=text_color, text=result_text, offsets=offsets, font_scale=0.5)
 
 
 def draw_result_label_and_heatmap_to_frame(model: AttentionClassificationModel, frame: np.ndarray,
@@ -53,8 +51,6 @@ def draw_result_label_and_heatmap_to_frame(model: AttentionClassificationModel, 
     heatmap = normalize255(tensor_to_cv(heatmap[0]))
     result_img = model.generate_heatmap_image(origin_frame, heatmap)
     result_text = f"Inference result:    {label_names[label]} - {label_prob}%"
-    offsets = (0, 80)
-    background_color = (255, 255, 255)
+    offsets = (20, 20)
     text_color = (0, 0, 255)
-    return draw_text_with_background(result_img, background_color=background_color, text_color=text_color,
-                                     text=result_text, offsets=offsets, font_scale=0.5)
+    return draw_text(result_img, text_color=text_color, text=result_text, offsets=offsets, font_scale=0.5)
