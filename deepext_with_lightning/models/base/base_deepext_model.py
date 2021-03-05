@@ -12,7 +12,7 @@ class BaseDeepextModel(LightningModule, metaclass=ABCMeta):
         torch_model.eval()
 
         if for_os == "cpu":
-            example = torch.rand(1, 3, width, height).to("cpu")
+            example = torch.rand(1, 3, height, width).to("cpu")
             traced_script_module = torch.jit.trace(torch_model, example)
             traced_script_module.save(out_filepath)
             return

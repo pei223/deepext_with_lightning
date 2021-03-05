@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 from pathlib import Path
 
 from pytorch_lightning.callbacks import Callback
-from deepext_with_lightning.models.base import SegmentationModel
+from ..models.base import SegmentationModel
 from ..image_process.convert import cv_to_pil, to_4dim, tensor_to_cv, normalize255
 
 

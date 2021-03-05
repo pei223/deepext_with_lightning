@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from deepext_with_lightning.image_process.convert import try_cuda
+from ...image_process.convert import try_cuda
 
 
 class JaccardLoss(torch.nn.Module):
