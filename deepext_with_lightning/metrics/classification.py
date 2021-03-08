@@ -6,7 +6,7 @@ class ClassificationAccuracy(pl.metrics.Metric):
     def __init__(self, n_classes: int, by_classes=False, average=False):
         if by_classes and average:
             raise ValueError("by_classes and average must be either")
-        super().__init__()
+        super().__init__(compute_on_step=False)
         self._n_classes = n_classes
         self._by_classes = by_classes
         self._average = average
@@ -32,7 +32,7 @@ class ClassificationRecallPrecision(pl.metrics.Metric):
     def __init__(self, n_classes: int, by_classes=False, average=False):
         if by_classes and average:
             raise ValueError("by_classes and average must be either")
-        super().__init__()
+        super().__init__(compute_on_step=False)
         self._n_classes = n_classes
         self._by_classes = by_classes
         self._average = average

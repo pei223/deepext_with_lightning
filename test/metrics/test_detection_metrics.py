@@ -70,4 +70,11 @@ def test_mAP():
     metric = MeanAveragePrecision(n_classes)
     metric(preds, teachers)
     metric_value = metric.compute()
-    assert isinstance(metric_value.item(), float)
+    assert isinstance(metric_value, float)
+
+
+def test_mAP_by_classes():
+    metric = MeanAveragePrecision(n_classes, by_classes=True)
+    metric(preds, teachers)
+    metric_value = metric.compute()
+    assert isinstance(metric_value, list)

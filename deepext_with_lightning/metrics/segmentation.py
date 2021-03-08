@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 
 class SegmentationIoU(pl.metrics.Metric):
     def __init__(self, n_classes: int, by_classes: bool = False, without_background_class: bool = False):
-        super().__init__()
+        super().__init__(compute_on_step=False)
         self._n_classes = n_classes
         self._without_background_class = without_background_class
         self._by_classes = by_classes
