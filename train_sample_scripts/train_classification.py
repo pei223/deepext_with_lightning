@@ -80,7 +80,7 @@ model: ClassificationModel = try_cuda(EfficientNet(num_classes=n_classes, networ
 # model: ClassificationModel = try_cuda(AttentionBranchNetwork(n_classes=n_classes, backbone=BackBoneKey.RESNET_18))
 
 if load_checkpoint_path and load_checkpoint_path != "":
-    model.load_from_checkpoint(load_checkpoint_path)
+    model = model.load_from_checkpoint(load_checkpoint_path)
 
 # TODO Train detail params
 # Metrics/Callbacks

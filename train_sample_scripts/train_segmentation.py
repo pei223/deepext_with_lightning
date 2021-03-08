@@ -80,7 +80,7 @@ model: SegmentationModel = try_cuda(
     ShelfNet(n_classes=n_classes, out_size=(height, width)))
 
 if load_checkpoint_path and load_checkpoint_path != "":
-    model.load_from_checkpoint(load_checkpoint_path)
+    model = model.load_from_checkpoint(load_checkpoint_path)
 
 # TODO Train detail params
 # Metrics/Callbacks

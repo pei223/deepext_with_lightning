@@ -119,7 +119,7 @@ if __name__ == "__main__":
     # Fetch model and load weight.
     model = try_cuda(build_model(args, dataset_info["n_classes"] + 1))  # include background class
     if args.load_checkpoint_path:
-        model.load_from_checkpoint(args.load_checkpoint_path)
+        model = model.load_from_checkpoint(args.load_checkpoint_path)
 
     # Training setting.
     logger = get_logger("segmentation_demo", args, model)

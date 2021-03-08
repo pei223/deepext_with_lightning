@@ -107,7 +107,7 @@ if __name__ == "__main__":
     # Fetch model and load weight.
     model = build_model(args, dataset_info["n_classes"])
     if args.load_checkpoint_path:
-        model.load_from_checkpoint(args.load_checkpoint_path)
+        model = model.load_from_checkpoint(args.load_checkpoint_path)
 
     # Training setting.
     logger = get_logger("classification_demo", args, model)

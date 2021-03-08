@@ -83,7 +83,7 @@ model: DetectionModel = try_cuda(EfficientDetector(n_classes=n_classes, lr=lr,
                                                    network=f"efficientdet-d0", score_threshold=0.5))
 
 if load_checkpoint_path and load_checkpoint_path != "":
-    model.load_from_checkpoint(load_checkpoint_path)
+    model = model.load_from_checkpoint(load_checkpoint_path)
 
 # TODO Train detail params
 # Callbacks
