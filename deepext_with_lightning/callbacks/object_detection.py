@@ -6,7 +6,7 @@ from pathlib import Path
 from torch.utils.data import Dataset
 from pytorch_lightning.callbacks import Callback
 
-from ..image_process.drawer import draw_bounding_boxes_with_name_tag
+from ..image_process.drawer import draw_bounding_box_with_name_tag
 from ..models.base import DetectionModel
 from ..image_process.convert import cv_to_pil, to_4dim, tensor_to_cv, normalize255
 
@@ -71,5 +71,5 @@ class GenerateDetectionImageCallback(Callback):
         if teacher_bboxes is None or len(teacher_bboxes) == 0:
             return image
         for bbox in teacher_bboxes:
-            image = draw_bounding_boxes_with_name_tag(image, [bbox], color=self._teacher_color, text=None)
+            image = draw_bounding_box_with_name_tag(image, bbox, color=self._teacher_color, text=None)
         return image

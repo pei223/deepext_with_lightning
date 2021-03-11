@@ -67,25 +67,24 @@ INDEXED_COLOR_PALETTE = [0, 0, 0, 128, 0, 0, 0, 128, 0, 128, 128, 0, 0, 0, 128, 
 INDEXED_COLOR_PALETTE = np.array(INDEXED_COLOR_PALETTE).reshape((-1, 3))
 
 
-def draw_bounding_boxes_with_name_tag(origin_image: np.ndarray, bounding_boxes: Iterable[Iterable[float]],
-                                      text: str = None,
-                                      is_bbox_norm=False, thickness=1, color=(0, 0, 255), text_color=(0, 0, 0)):
+def draw_bounding_box_with_name_tag(origin_image: np.ndarray, bounding_box: Iterable[float],
+                                    text: str = None,
+                                    is_bbox_norm=False, thickness=1, color=(0, 0, 255), text_color=(0, 0, 0)):
     image = origin_image.copy()
     height, width = image.shape[:2]
-    for bounding_box in bounding_boxes:
-        if len(bounding_box) < 4:
-            continue
-        x_min, y_min, x_max, y_max = bounding_box[:4]
-        if is_bbox_norm:
-            x_min *= width
-            x_max *= width
-            y_min *= height
-            y_max *= height
-        x_min, y_min, x_max, y_max = int(x_min), int(y_min), int(x_max), int(y_max)
-        image = cv2.rectangle(image, (x_min, y_min), (x_max, y_max), color, thickness)
-        if text:
-            image = draw_text_with_background(image, text=text, offsets=(x_min, y_min), background_color=color,
-                                              text_color=text_color)
+    if len(bounding_box) < 4:
+        return image
+    x_min, y_min, x_max, y_max = bounding_box[:4]
+    if is_bbox_norm:
+        x_min *= width
+        x_max *= width
+        y_min *= height
+        y_max *= height
+    x_min, y_min, x_max, y_max = int(x_min), int(y_min), int(x_max), int(y_max)
+    image = cv2.rectangle(image, (x_min, y_min), (x_max, y_max), color, thickness)
+    if text:
+        image = draw_text_with_background(image, text=text, offsets=(x_min, y_min), background_color=color,
+                                          text_color=text_color)
     return image
 
 
@@ -103,7 +102,7 @@ def draw_text_with_background(origin_img: np.ndarray, text, offsets: Tuple[int, 
 
 
 def draw_text(origin_img: np.ndarray, text, offsets: Tuple[int, int],
-                              text_color=(0, 0, 0), font_scale=0.7, font=cv2.FONT_HERSHEY_DUPLEX):
+              text_color=(0, 0, 0), font_scale=0.7, font=cv2.FONT_HERSHEY_DUPLEX):
     text_width, text_height = cv2.getTextSize(text, font, font_scale, 1)[0]
     return cv2.putText(origin_img, text, (offsets[0], offsets[1] + text_height), font, font_scale,
                        text_color, 1, cv2.LINE_AA)

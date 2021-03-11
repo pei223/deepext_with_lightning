@@ -1,11 +1,13 @@
-from typing import Tuple, List
+from typing import Tuple, List, TypeVar
 from pathlib import Path
 from PIL import Image
 from torch.utils.data import Dataset
 
+T_ROOT_DATASET = TypeVar("T_ROOT_DATASET", bound=Dataset)
+
 
 class TransformsWrapperDataset(Dataset):
-    def __init__(self, root_dataset: Dataset, transforms):
+    def __init__(self, root_dataset: T_ROOT_DATASET, transforms):
         super().__init__()
         self._root_dataset = root_dataset
         self._transforms = transforms
@@ -18,6 +20,10 @@ class TransformsWrapperDataset(Dataset):
         if self._transforms is not None:
             return self._transforms(image, label)
         return image, label
+
+    @property
+    def root_dataset(self) -> T_ROOT_DATASET:
+        return self._root_dataset
 
 
 def create_filepath_ls(image_dir_path: str, valid_suffixes: List[str] = None) -> List[str]:

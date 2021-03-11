@@ -3,7 +3,7 @@ from typing import List, Union, Tuple
 import torch
 import numpy as np
 from .base_deepext_model import BaseDeepextModel
-from ...image_process.drawer import draw_bounding_boxes_with_name_tag
+from ...image_process.drawer import draw_bounding_box_with_name_tag
 
 
 class DetectionModel(BaseDeepextModel):
@@ -55,6 +55,6 @@ class DetectionModel(BaseDeepextModel):
             score = int(bbox[5] * 100.)
             label_name = label_names[int(bbox[4])]
             bbox_text = f"{label_name} {score}%"
-            image = draw_bounding_boxes_with_name_tag(image, bboxes, color=pred_color,
-                                                      text=bbox_text)
+            image = draw_bounding_box_with_name_tag(image, bbox, color=pred_color,
+                                                    text=bbox_text)
         return image
