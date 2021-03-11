@@ -9,6 +9,40 @@ from pathlib import Path
 import numpy as np
 
 
+class CSVAnnotationDatasetWithUnderSampling(Dataset):
+    def __init__(self, image_dir: str, annotation_dict: Dict[str, int], transforms,
+                 label_dist: List[int], under_sampling_rate: List[float]):
+        self._image_dir = image_dir
+        self._annotation_dict = annotation_dict
+        self._transforms = transforms
+        self._n_classes = len(under_sampling_rate)
+        self._filenames_by_classes = [[] for _ in range(self._n_classes)]
+        for filename, label in self._annotation_dict.items():
+            self._filenames_by_classes[label].append(filename)
+
+        self._sampled_label_dist = list(map(lambda x_y: round(x_y[0] * x_y[1]), zip(under_sampling_rate, label_dist)))
+        self._data_len = sum(self._sampled_label_dist)
+        self._norm_label_dist = np.array(label_dist) / sum(label_dist)
+
+    def __len__(self):
+        return self._data_len
+
+    def __getitem__(self, idx):
+        label = np.random.choice([i for i in range(self._n_classes)], p=self._norm_label_dist)
+        filenames = self._filenames_by_classes[label]
+        filename = np.random.choice(filenames)
+        label = self._annotation_dict[filename]
+        filepath = Path(self._image_dir).joinpath(filename)
+        img = Image.open(str(filepath))
+        img = img.convert("RGB")
+        if self._transforms:
+            return self._transforms(img, label)
+        return img, label
+
+    def labels_distribution(self) -> List[int]:
+        return self._sampled_label_dist
+
+
 class CSVAnnotationDatasetWithOverSampling(Dataset):
     def __init__(self, image_dir: str, annotation_dict: Dict[str, int], transforms, over_sampling_rate: List[int]):
         self._image_dir = image_dir
@@ -117,3 +151,9 @@ class CSVAnnotationDataset(Dataset):
     def apply_over_sampling(self, over_sampling_rate: List[int]) -> CSVAnnotationDatasetWithOverSampling:
         return CSVAnnotationDatasetWithOverSampling(self._image_dir, self._filepath_label_dict,
                                                     self._transforms, over_sampling_rate)
+
+    def apply_under_sampling(self, under_sampling_rate: List[float]) -> CSVAnnotationDatasetWithUnderSampling:
+        return CSVAnnotationDatasetWithUnderSampling(self._image_dir, self._filepath_label_dict,
+                                                     self._transforms,
+                                                     self.labels_distribution(len(under_sampling_rate)),
+                                                     under_sampling_rate)
