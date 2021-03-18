@@ -24,10 +24,24 @@ dummy_dataset = CSVAnnotationDataset("hoge", OrderedDict({
 origin_distribution = [2, 8, 4]
 
 
-def test_reading_from_file():
+def test_reading_file():
     annotation_path = "test/dataset/test_annotation_csv/test_annotation.csv"
     images_path = "test/dataset/test_images"
     dataset = CSVAnnotationDataset.create(images_path, annotation_path, transforms=None)
+    data = dataset[1]
+    assert len(dataset) == 2
+    assert isinstance(data, tuple) and len(data) == 2
+    assert isinstance(data[1], int)
+
+
+def test_reading_file_with_label_name():
+    annotation_path = "test/dataset/test_annotation_csv/test_annotation_with_label_name.csv"
+    images_path = "test/dataset/test_images"
+    class_index_dict = {
+        "label1": 0,
+        "label2": 1
+    }
+    dataset = CSVAnnotationDataset.create(images_path, annotation_path, transforms=None, label_dict=class_index_dict)
     data = dataset[1]
     assert len(dataset) == 2
     assert isinstance(data, tuple) and len(data) == 2

@@ -98,7 +98,7 @@ mlflow ui --port 12345
 
 ## Test
 ```
-pytest test
+pytest --cov=deepext_with_lightning --cov-report=html
 ```
 
 <br/><br/>
