@@ -1,4 +1,4 @@
-from typing import List, Union, Dict, Tuple
+from typing import List, Union, Dict, Tuple, Optional, Callable
 from warnings import warn
 
 from torch.utils.data import Dataset
@@ -83,13 +83,14 @@ class VOCAnnotationTransform:
 
 class VOCDataset(Dataset):
     @staticmethod
-    def create(image_dir_path: str, annotation_dir_path: str, transforms, class_index_dict: Dict[str, int],
+    def create(image_dir_path: str, annotation_dir_path: str, transforms: Optional[Callable],
+               class_index_dict: Dict[str, int],
                valid_suffixes: List[str] = None):
         image_path_ls = create_filepath_ls(image_dir_path, valid_suffixes)
         return VOCDataset(image_path_ls, image_dir_path, annotation_dir_path, class_index_dict, transforms)
 
-    def __init__(self, image_filename_ls: List[str], image_dir_path: str, annotation_dir_path: str,
-                 class_index_dict: Dict[str, int], transform):
+    def __init__(self, image_filename_ls: List[Path], image_dir_path: str, annotation_dir_path: str,
+                 class_index_dict: Dict[str, int], transform: Optional[Callable]):
         self._image_dir = Path(image_dir_path)
         self._annotation_dir = Path(annotation_dir_path)
         self._class_index_dict = class_index_dict
@@ -98,7 +99,7 @@ class VOCDataset(Dataset):
         self._voc_transform = VOCAnnotationTransform(class_index_dict)
 
     def __getitem__(self, idx: int):
-        image_name = self._image_filename_ls[idx]
+        image_name = self._image_filename_ls[idx].name
         image_path = self._image_dir.joinpath(image_name)
         annotation_path = self._annotation_dir.joinpath(f"{Path(image_name).stem}.xml")
 

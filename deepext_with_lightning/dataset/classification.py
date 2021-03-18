@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from functools import reduce
-from typing import Dict, List
+from typing import Dict, List, Optional, Callable
 from warnings import warn
 from torch.utils.data import Dataset
 import csv
@@ -79,7 +79,7 @@ class CSVAnnotationDatasetWithOverSampling(Dataset):
 
 class CSVAnnotationDataset(Dataset):
     @staticmethod
-    def create(image_dir: str, annotation_csv_filepath: str, transforms,
+    def create(image_dir: str, annotation_csv_filepath: str, transforms: Optional[Callable],
                label_dict: Dict[str, int] = None) -> 'CSVAnnotationDataset':
         """
         Create dataset from CSV file.
@@ -113,7 +113,7 @@ class CSVAnnotationDataset(Dataset):
                 filename_label_dict[filename] = int(label)
         return filename_label_dict
 
-    def __init__(self, image_dir: str, filename_label_dict: OrderedDict, transforms):
+    def __init__(self, image_dir: str, filename_label_dict: OrderedDict, transforms: Optional[Callable]):
         self._image_dir = image_dir
         self._transforms = transforms
         self._filepath_label_dict = filename_label_dict

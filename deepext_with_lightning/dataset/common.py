@@ -26,7 +26,7 @@ class TransformsWrapperDataset(Dataset):
         return self._root_dataset
 
 
-def create_filepath_ls(image_dir_path: str, valid_suffixes: List[str] = None) -> List[str]:
+def create_filepath_ls(image_dir_path: str, valid_suffixes: List[str] = None) -> List[Path]:
     valid_suffixes = valid_suffixes or ["*.png", "*.jpg", "*.jpeg", "*.bmp"]
     image_path_ls = []
     image_dir = Path(image_dir_path)
