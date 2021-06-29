@@ -86,18 +86,20 @@ class AttentionBranchNetwork(AttentionClassificationModel):
                F.cross_entropy(attention_pred, teacher, reduction="mean")
 
     def predict_label_and_heatmap(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        self._model.eval()
-        x = try_cuda(x).float()
-        pred, _, heatmap = self._model(x)
-        heatmap = heatmap[:, 0]
-        heatmap = self._normalize_heatmap(heatmap)
-        return torch.argmax(pred, dim=1), pred, heatmap
+        with torch.no_grad():
+            self._model.eval()
+            x = try_cuda(x).float()
+            pred, _, heatmap = self._model(x)
+            heatmap = heatmap[:, 0]
+            heatmap = self._normalize_heatmap(heatmap)
+            return torch.argmax(pred, dim=1), pred, heatmap
 
     def predict_label(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        self._model.eval()
-        img = try_cuda(img).float()
-        pred_prob, _, heatmap = self._model(img)
-        return torch.argmax(pred_prob, dim=1), pred_prob
+        with torch.no_grad():
+            self._model.eval()
+            img = try_cuda(img).float()
+            pred_prob, _, heatmap = self._model(img)
+            return torch.argmax(pred_prob, dim=1), pred_prob
 
     def generate_model_name(self, suffix: str = "") -> str:
         return f'{self.__class__.__name__}_{self._backbone.value}{suffix}'

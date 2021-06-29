@@ -39,30 +39,31 @@ class EfficientDetector(DetectionModel):
         return self._model(x)
 
     def predict_bboxes(self, imgs: torch.Tensor) -> List[np.ndarray]:
-        self._model.eval()
-        self._model.is_training = False
-        assert imgs.ndim == 4
+        with torch.no_grad():
+            self._model.eval()
+            self._model.is_training = False
+            assert imgs.ndim == 4
 
-        result = []
-        for i in range(imgs.shape[0]):
-            # TODO ここtensorにしたいけど公式がnumpy
-            image = imgs[i].float().unsqueeze(0)
-            scores, labels, boxes = self._model(try_cuda(image))
-            scores = scores.detach().cpu().numpy()
-            labels = labels.detach().cpu().numpy()
-            boxes = boxes.detach().cpu().numpy()
-            scores_sort = np.argsort(-scores)[:self._max_detections]
-            # select detections
-            image_boxes = boxes[scores_sort, :]
-            image_scores = scores[scores_sort]
-            image_labels = labels[scores_sort]
-            image_detections = np.concatenate([
-                image_boxes,
-                np.expand_dims(image_labels, axis=1),
-                np.expand_dims(image_scores, axis=1),
-            ], axis=1)
-            result.append(image_detections)
-        return result
+            result = []
+            for i in range(imgs.shape[0]):
+                # TODO ここtensorにしたいけど公式がnumpy
+                image = imgs[i].float().unsqueeze(0)
+                scores, labels, boxes = self._model(try_cuda(image))
+                scores = scores.detach().cpu().numpy()
+                labels = labels.detach().cpu().numpy()
+                boxes = boxes.detach().cpu().numpy()
+                scores_sort = np.argsort(-scores)[:self._max_detections]
+                # select detections
+                image_boxes = boxes[scores_sort, :]
+                image_scores = scores[scores_sort]
+                image_labels = labels[scores_sort]
+                image_detections = np.concatenate([
+                    image_boxes,
+                    np.expand_dims(image_labels, axis=1),
+                    np.expand_dims(image_scores, axis=1),
+                ], axis=1)
+                result.append(image_detections)
+            return result
 
     def training_step(self, batch, batch_idx):
         self._model.train()

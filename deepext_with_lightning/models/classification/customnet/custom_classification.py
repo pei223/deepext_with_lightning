@@ -30,10 +30,11 @@ class CustomClassificationNetwork(ClassificationModel):
         return F.softmax(result, dim=1)
 
     def predict_label(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        self._model.eval()
-        img = try_cuda(img)
-        pred_prob = self._model(img)
-        return torch.argmax(pred_prob, dim=1), pred_prob
+        with torch.no_grad():
+            self._model.eval()
+            img = try_cuda(img)
+            pred_prob = self._model(img)
+            return torch.argmax(pred_prob, dim=1), pred_prob
 
     def training_step(self, batch, batch_idx):
         self._model.train()

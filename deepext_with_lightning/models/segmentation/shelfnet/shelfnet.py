@@ -47,10 +47,11 @@ class ShelfNet(SegmentationModel):
         return self._model(x)
 
     def predict_index_image(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        self._model.eval()
-        img = try_cuda(img)
-        pred = self(img)[0]
-        return self.result_to_index_image(pred), pred
+        with torch.no_grad():
+            self._model.eval()
+            img = try_cuda(img)
+            pred = self(img)[0]
+            return self.result_to_index_image(pred), pred
 
     def training_step(self, batch, batch_idx):
         self._model.train()
